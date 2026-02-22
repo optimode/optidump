@@ -96,7 +96,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            bin/optidump-*
+            bin/optidump-linux-*
+            bin/optidump-darwin-*
             bin/checksums-sha256.txt
             bin/*.deb
             bin/*.pkg.tar.zst
