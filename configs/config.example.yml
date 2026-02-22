@@ -38,6 +38,12 @@ production:
     recipient:
       - admin@example.com
       - dba@example.com
+    # SMTP server settings (defaults: localhost:25, no encryption)
+    host: smtp.example.com
+    port: 587
+    encryption: starttls  # none, starttls, or ssl
+    username: smtp_user
+    password: smtp_password
 
   # Optional: Only backup specific databases/tables
   only:

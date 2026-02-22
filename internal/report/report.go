@@ -1,7 +1,9 @@
 package report
 
 import (
+	"crypto/tls"
 	"fmt"
+	"net"
 	"net/smtp"
 	"optidump/internal/config"
 	"strings"
@@ -45,6 +47,22 @@ func (r *Report) Send(cfg config.ReportConfig, sectionName string, hasError bool
 		sender = "optidump@localhost"
 	}
 
+	// Apply defaults
+	host := cfg.Host
+	if host == "" {
+		host = "localhost"
+	}
+
+	port := cfg.Port
+	if port == 0 {
+		port = 25
+	}
+
+	encryption := cfg.Encryption
+	if encryption == "" {
+		encryption = "none"
+	}
+
 	// Prepare email message
 	subject := fmt.Sprintf("Report of a mysql backup: %s", sectionName)
 	if hasError {
@@ -52,24 +70,103 @@ func (r *Report) Send(cfg config.ReportConfig, sectionName string, hasError bool
 	}
 
 	body := r.makeMessage(sectionName, hasError)
-
-	// Build email headers and body
 	message := r.buildEmailMessage(sender, cfg.Recipient, subject, body)
 
-	// Send email via localhost SMTP
-	err := smtp.SendMail(
-		"localhost:25",
-		nil, // No authentication
-		sender,
-		cfg.Recipient,
-		[]byte(message),
-	)
+	// Connect to SMTP server
+	addr := fmt.Sprintf("%s:%d", host, port)
 
-	if err != nil {
-		return fmt.Errorf("failed to send email: %w", err)
+	var client *smtp.Client
+	var err error
+
+	switch encryption {
+	case "ssl":
+		client, err = dialSSL(addr, host)
+	case "starttls":
+		client, err = dialStartTLS(addr, host)
+	default:
+		client, err = smtp.Dial(addr)
 	}
 
-	return nil
+	if err != nil {
+		return fmt.Errorf("failed to connect to SMTP server: %w", err)
+	}
+	defer client.Close()
+
+	// Authenticate if credentials provided
+	if cfg.Username != "" {
+		auth := smtp.PlainAuth("", cfg.Username, cfg.Password, host)
+		if err := client.Auth(auth); err != nil {
+			return fmt.Errorf("SMTP authentication failed: %w", err)
+		}
+	}
+
+	// Set sender
+	if err := client.Mail(sender); err != nil {
+		return fmt.Errorf("SMTP MAIL FROM failed: %w", err)
+	}
+
+	// Set recipients
+	for _, recipient := range cfg.Recipient {
+		if err := client.Rcpt(recipient); err != nil {
+			return fmt.Errorf("SMTP RCPT TO failed for %s: %w", recipient, err)
+		}
+	}
+
+	// Send message body
+	w, err := client.Data()
+	if err != nil {
+		return fmt.Errorf("SMTP DATA failed: %w", err)
+	}
+
+	if _, err := w.Write([]byte(message)); err != nil {
+		return fmt.Errorf("failed to write email body: %w", err)
+	}
+
+	if err := w.Close(); err != nil {
+		return fmt.Errorf("failed to close email body: %w", err)
+	}
+
+	return client.Quit()
+}
+
+// dialSSL connects to an SMTP server over a direct TLS connection (port 465 typical)
+func dialSSL(addr, host string) (*smtp.Client, error) {
+	tlsConfig := &tls.Config{ServerName: host}
+
+	conn, err := tls.Dial("tcp", addr, tlsConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	client, err := smtp.NewClient(conn, host)
+	if err != nil {
+		conn.Close()
+		return nil, err
+	}
+
+	return client, nil
+}
+
+// dialStartTLS connects to an SMTP server in plain text, then upgrades to TLS
+func dialStartTLS(addr, host string) (*smtp.Client, error) {
+	conn, err := net.Dial("tcp", addr)
+	if err != nil {
+		return nil, err
+	}
+
+	client, err := smtp.NewClient(conn, host)
+	if err != nil {
+		conn.Close()
+		return nil, err
+	}
+
+	tlsConfig := &tls.Config{ServerName: host}
+	if err := client.StartTLS(tlsConfig); err != nil {
+		client.Close()
+		return nil, fmt.Errorf("STARTTLS failed: %w", err)
+	}
+
+	return client, nil
 }
 
 // buildEmailMessage constructs the full email message with headers

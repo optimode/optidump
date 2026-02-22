@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -474,6 +475,141 @@ func TestValidate_MultipleErrors(t *testing.T) {
 	}
 	if len(errors) < 5 {
 		t.Errorf("expected at least 5 errors for empty section, got %d: %v", len(errors), errors)
+	}
+}
+
+// --- Report SMTP validation ---
+
+func TestLoad_WithReportSMTPConfig(t *testing.T) {
+	yaml := `
+test:
+  server:
+    host: localhost
+    port: 3306
+    user: root
+    password: secret
+  backup:
+    mode: file_per_table
+    destination: /opt/backup
+  logging:
+    file: /tmp/test.log
+    level: info
+  report:
+    sender: backup@example.com
+    recipient:
+      - admin@example.com
+    host: smtp.example.com
+    port: 587
+    encryption: starttls
+    username: smtpuser
+    password: smtppass
+`
+	path := filepath.Join(t.TempDir(), "config.yml")
+	os.WriteFile(path, []byte(yaml), 0644)
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	r := cfg["test"].Report
+	if r.Host != "smtp.example.com" {
+		t.Errorf("Host = %q, want %q", r.Host, "smtp.example.com")
+	}
+	if r.Port != 587 {
+		t.Errorf("Port = %d, want %d", r.Port, 587)
+	}
+	if r.Encryption != "starttls" {
+		t.Errorf("Encryption = %q, want %q", r.Encryption, "starttls")
+	}
+	if r.Username != "smtpuser" {
+		t.Errorf("Username = %q, want %q", r.Username, "smtpuser")
+	}
+	if r.Password != "smtppass" {
+		t.Errorf("Password = %q, want %q", r.Password, "smtppass")
+	}
+}
+
+func TestValidate_ReportEncryptionValues(t *testing.T) {
+	for _, enc := range []string{"none", "starttls", "ssl", ""} {
+		t.Run("encryption_"+enc, func(t *testing.T) {
+			s := validSection()
+			s.Report.Encryption = enc
+			cfg := Config{"test": s}
+			valid, errors := Validate(cfg)
+			if !valid {
+				t.Errorf("encryption %q should be valid, errors: %v", enc, errors)
+			}
+		})
+	}
+}
+
+func TestValidate_ReportEncryptionInvalid(t *testing.T) {
+	s := validSection()
+	s.Report.Encryption = "tls13"
+	cfg := Config{"test": s}
+	valid, errors := Validate(cfg)
+	if valid {
+		t.Error("expected invalid")
+	}
+	assertContainsError(t, errors, "test.report.encryption is not correct value (tls13)")
+}
+
+func TestValidate_ReportPortValid(t *testing.T) {
+	for _, port := range []int{0, 25, 465, 587, 65535} {
+		t.Run(fmt.Sprintf("port_%d", port), func(t *testing.T) {
+			s := validSection()
+			s.Report.Port = port
+			cfg := Config{"test": s}
+			valid, errors := Validate(cfg)
+			if !valid {
+				t.Errorf("port %d should be valid, errors: %v", port, errors)
+			}
+		})
+	}
+}
+
+func TestValidate_ReportPortInvalid(t *testing.T) {
+	s := validSection()
+	s.Report.Port = -1
+	cfg := Config{"test": s}
+	valid, errors := Validate(cfg)
+	if valid {
+		t.Error("expected invalid for port -1")
+	}
+	assertContainsError(t, errors, "test.report.port is not a valid port number (-1)")
+}
+
+func TestValidate_ReportPasswordWithoutUsername(t *testing.T) {
+	s := validSection()
+	s.Report.Password = "secret"
+	s.Report.Username = ""
+	cfg := Config{"test": s}
+	valid, errors := Validate(cfg)
+	if valid {
+		t.Error("expected invalid")
+	}
+	assertContainsError(t, errors, "test.report.password is set but username is empty")
+}
+
+func TestValidate_ReportUsernameWithoutPassword(t *testing.T) {
+	s := validSection()
+	s.Report.Username = "user"
+	s.Report.Password = ""
+	cfg := Config{"test": s}
+	valid, errors := Validate(cfg)
+	if !valid {
+		t.Errorf("username without password should be valid, errors: %v", errors)
+	}
+}
+
+func TestValidate_ReportUsernameAndPassword(t *testing.T) {
+	s := validSection()
+	s.Report.Username = "user"
+	s.Report.Password = "pass"
+	cfg := Config{"test": s}
+	valid, errors := Validate(cfg)
+	if !valid {
+		t.Errorf("username and password should be valid, errors: %v", errors)
 	}
 }
 

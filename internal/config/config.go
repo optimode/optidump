@@ -34,8 +34,13 @@ type LoggingConfig struct {
 
 // ReportConfig contains email reporting settings
 type ReportConfig struct {
-	Sender    string   `yaml:"sender"`
-	Recipient []string `yaml:"recipient"`
+	Sender     string   `yaml:"sender"`
+	Recipient  []string `yaml:"recipient"`
+	Host       string   `yaml:"host"`
+	Port       int      `yaml:"port"`
+	Encryption string   `yaml:"encryption"` // none, starttls, ssl
+	Username   string   `yaml:"username"`
+	Password   string   `yaml:"password"`
 }
 
 // SectionConfig represents a complete backup section configuration
@@ -177,6 +182,7 @@ func validateLogging(sectionName string, logging LoggingConfig) []string {
 // validateReport validates report configuration
 func validateReport(sectionName string, report ReportConfig) []string {
 	var errors []string
+	validEncryptions := []string{"none", "starttls", "ssl", ""}
 
 	if len(report.Recipient) > 0 {
 		for i, recipient := range report.Recipient {
@@ -184,6 +190,18 @@ func validateReport(sectionName string, report ReportConfig) []string {
 				errors = append(errors, fmt.Sprintf("%s.report.recipient.%d is empty", sectionName, i))
 			}
 		}
+	}
+
+	if !contains(validEncryptions, report.Encryption) {
+		errors = append(errors, fmt.Sprintf("%s.report.encryption is not correct value (%s)", sectionName, report.Encryption))
+	}
+
+	if report.Port < 0 || report.Port > 65535 {
+		errors = append(errors, fmt.Sprintf("%s.report.port is not a valid port number (%d)", sectionName, report.Port))
+	}
+
+	if report.Password != "" && report.Username == "" {
+		errors = append(errors, fmt.Sprintf("%s.report.password is set but username is empty", sectionName))
 	}
 
 	return errors

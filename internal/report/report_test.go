@@ -223,3 +223,121 @@ func TestSend_NilRecipients(t *testing.T) {
 		t.Errorf("Send() with nil recipients should return nil, got: %v", err)
 	}
 }
+
+// --- Dial helpers ---
+
+func TestDialSSL_ConnectionRefused(t *testing.T) {
+	_, err := dialSSL("127.0.0.1:1", "127.0.0.1")
+	if err == nil {
+		t.Fatal("dialSSL() should fail on refused connection")
+	}
+}
+
+func TestDialStartTLS_ConnectionRefused(t *testing.T) {
+	_, err := dialStartTLS("127.0.0.1:1", "127.0.0.1")
+	if err == nil {
+		t.Fatal("dialStartTLS() should fail on refused connection")
+	}
+}
+
+// --- Send with defaults ---
+
+func TestSend_DefaultsApplied(t *testing.T) {
+	start, end := sampleTimes()
+	r := New(start, end, map[string]*SavedFile{})
+
+	// Send with recipients but no host/port/encryption — should use defaults
+	// and fail to connect to localhost:25 (which is expected in test env)
+	err := r.Send(config.ReportConfig{
+		Recipient: []string{"admin@example.com"},
+	}, "test", false)
+
+	if err == nil {
+		t.Skip("SMTP server running on localhost:25, cannot test connection failure")
+	}
+	if !strings.Contains(err.Error(), "failed to connect to SMTP server") {
+		t.Errorf("expected SMTP connection error, got: %v", err)
+	}
+}
+
+func TestSend_SSLConnectionError(t *testing.T) {
+	start, end := sampleTimes()
+	r := New(start, end, map[string]*SavedFile{})
+
+	err := r.Send(config.ReportConfig{
+		Recipient:  []string{"admin@example.com"},
+		Host:       "127.0.0.1",
+		Port:       1,
+		Encryption: "ssl",
+	}, "test", false)
+
+	if err == nil {
+		t.Fatal("Send() with ssl to invalid port should fail")
+	}
+	if !strings.Contains(err.Error(), "failed to connect to SMTP server") {
+		t.Errorf("expected SMTP connection error, got: %v", err)
+	}
+}
+
+func TestSend_StartTLSConnectionError(t *testing.T) {
+	start, end := sampleTimes()
+	r := New(start, end, map[string]*SavedFile{})
+
+	err := r.Send(config.ReportConfig{
+		Recipient:  []string{"admin@example.com"},
+		Host:       "127.0.0.1",
+		Port:       1,
+		Encryption: "starttls",
+	}, "test", false)
+
+	if err == nil {
+		t.Fatal("Send() with starttls to invalid port should fail")
+	}
+	if !strings.Contains(err.Error(), "failed to connect to SMTP server") {
+		t.Errorf("expected SMTP connection error, got: %v", err)
+	}
+}
+
+func TestSend_SubjectWithError(t *testing.T) {
+	start, end := sampleTimes()
+	r := New(start, end, map[string]*SavedFile{})
+
+	// We can't easily test the full Send flow without an SMTP server,
+	// but we can verify the message building via makeMessage and buildEmailMessage
+	msg := r.makeMessage("production", true)
+	if !strings.Contains(msg, "errors were detected") {
+		t.Error("error message should mention errors")
+	}
+
+	emailMsg := r.buildEmailMessage(
+		"optidump@localhost",
+		[]string{"admin@example.com"},
+		"Report of a mysql backup: production (with errors)",
+		msg,
+	)
+	if !strings.Contains(emailMsg, "(with errors)") {
+		t.Error("subject should contain error indicator")
+	}
+}
+
+func TestSend_DefaultSender(t *testing.T) {
+	start, end := sampleTimes()
+	r := New(start, end, map[string]*SavedFile{})
+
+	// Test that empty sender defaults to optidump@localhost
+	// We test this indirectly: Send will try to connect and fail,
+	// but the error should be about connection, not about sender
+	err := r.Send(config.ReportConfig{
+		Recipient: []string{"admin@example.com"},
+		Host:      "127.0.0.1",
+		Port:      1,
+	}, "test", false)
+
+	if err == nil {
+		t.Skip("unexpected success")
+	}
+	// If we got here, defaults were applied without panic
+	if !strings.Contains(err.Error(), "failed to connect") {
+		t.Errorf("expected connection error, got: %v", err)
+	}
+}

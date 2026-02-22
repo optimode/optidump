@@ -57,25 +57,25 @@ Entry point is `cmd/optidump/main.go`. All internal packages live under `interna
 - **`internal/database`** — MySQL connection management (TCP and Unix socket), database/table discovery, `mysqldump` command generation. Uses `github.com/go-sql-driver/mysql`.
 - **`internal/backup`** — Core backup execution. Applies include/exclude filters, handles both `file_per_table` and `file_per_database` modes, creates timestamped output directories, handles gzip compression via `archive/tar` + `compress/gzip`.
 - **`internal/logger`** — Structured logging built on `log/slog` with custom handlers for console, text file, and JSON output formats. Includes automatic password masking in log output.
-- **`internal/report`** — SMTP email reporting (localhost:25) with backup statistics.
+- **`internal/report`** — SMTP email reporting with backup statistics. Supports configurable host/port, STARTTLS, implicit SSL, and SMTP authentication.
 
 ## Configuration
 
-YAML format with named sections. See `configs/config.example.yml` for the full template. Each section contains: `server` (MySQL connection), `backup` (mode/compression/destination), `logging` (file/level/format), `report` (SMTP sender/recipients), and optional `only`/`exclude` maps for database/table filtering.
+YAML format with named sections. See `configs/config.example.yml` for the full template. Each section contains: `server` (MySQL connection), `backup` (mode/compression/destination), `logging` (file/level/format), `report` (SMTP sender/recipients/host/port/encryption/auth), and optional `only`/`exclude` maps for database/table filtering.
 
 ## Testing
 
 Each internal package has a `_test.go` file with table-driven tests using `t.Run()` subtests. Tests cover the pure logic layer without requiring external services (MySQL, SMTP).
 
-- **config**: `Load()` (YAML parsing, multiple sections, only/exclude), `Validate()` (every field and boundary), `contains()` helper
+- **config**: `Load()` (YAML parsing, multiple sections, only/exclude, SMTP fields), `Validate()` (every field and boundary, report encryption/port/auth), `contains()` helper
 - **logger**: `parseLevel`, `ConsoleHandler`/`TextFileHandler` (Enabled, Handle, format output), `New()` (console/file/JSON), level filtering, `Close()`
 - **database**: `New()`, `SetCommand`/`SetOptions`, `GetConnectionString` (TCP vs socket), `GetTableDumpCommand`/`GetDatabaseDumpCommand`, `HasDatabases`/`GetDatabases`/`GetTables`
 - **backup**: `encryptDumpCommand` (password masking), `removeTable`, `compress` (gz round-trip with tar verification, bz2/unsupported error), `makeBackupCommands` (both modes), `doCompression` edge cases
-- **report**: `makeMessage` (all scenarios: basic, error, failed save, compression, empty), `buildEmailMessage` (single/multiple recipients, headers), `Send` (nil/empty recipients early return)
+- **report**: `makeMessage` (all scenarios: basic, error, failed save, compression, empty), `buildEmailMessage` (single/multiple recipients, headers), `Send` (nil/empty recipients early return, connection errors for all encryption modes, default sender/host/port), `dialSSL`/`dialStartTLS` (connection refused)
 
 ## Dependencies
 
-Go 1.25.3. Two direct dependencies: `github.com/go-sql-driver/mysql` and `gopkg.in/yaml.v3`.
+Go 1.25.7. Two direct dependencies: `github.com/go-sql-driver/mysql` and `gopkg.in/yaml.v3`.
 
 ## Git Workflow & Versioning
 
