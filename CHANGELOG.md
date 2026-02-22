@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cross-platform builds: linux/darwin for amd64/arm64
 - Security-hardened production binaries (stripped symbols, trimmed paths, no build ID)
 - Build metadata injection (version, git commit, build time) via ldflags
+- Unit tests for all internal packages (config, logger, database, backup, report)
 
 [Unreleased]: https://github.com/optimode/optidump/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/optimode/optidump/releases/tag/v0.1.0

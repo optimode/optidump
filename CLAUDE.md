@@ -29,6 +29,10 @@ make vet                  # Lint code: go vet ./...
 make check                # Run fmt + vet + test sequentially
 make security             # Run govulncheck for known vulnerabilities
 make clean                # Remove build artifacts
+
+# Run tests for a single package
+go test -v optidump/internal/config
+go test -v optidump/internal/backup -run TestCompress
 ```
 
 Build metadata (`version`, `gitCommit`, `buildTime`) is injected via `-ldflags -X`. Version is derived from `git describe --tags --always --dirty`.
@@ -58,6 +62,16 @@ Entry point is `cmd/optidump/main.go`. All internal packages live under `interna
 ## Configuration
 
 YAML format with named sections. See `configs/config.example.yml` for the full template. Each section contains: `server` (MySQL connection), `backup` (mode/compression/destination), `logging` (file/level/format), `report` (SMTP sender/recipients), and optional `only`/`exclude` maps for database/table filtering.
+
+## Testing
+
+Each internal package has a `_test.go` file with table-driven tests using `t.Run()` subtests. Tests cover the pure logic layer without requiring external services (MySQL, SMTP).
+
+- **config**: `Load()` (YAML parsing, multiple sections, only/exclude), `Validate()` (every field and boundary), `contains()` helper
+- **logger**: `parseLevel`, `ConsoleHandler`/`TextFileHandler` (Enabled, Handle, format output), `New()` (console/file/JSON), level filtering, `Close()`
+- **database**: `New()`, `SetCommand`/`SetOptions`, `GetConnectionString` (TCP vs socket), `GetTableDumpCommand`/`GetDatabaseDumpCommand`, `HasDatabases`/`GetDatabases`/`GetTables`
+- **backup**: `encryptDumpCommand` (password masking), `removeTable`, `compress` (gz round-trip with tar verification, bz2/unsupported error), `makeBackupCommands` (both modes), `doCompression` edge cases
+- **report**: `makeMessage` (all scenarios: basic, error, failed save, compression, empty), `buildEmailMessage` (single/multiple recipients, headers), `Send` (nil/empty recipients early return)
 
 ## Dependencies
 
@@ -133,6 +147,6 @@ Pre-release: `v1.2.3-rc.1`, `v1.2.3-rc.2`, etc.
 Deployment files live in `deployments/`:
 
 - **`systemd/optidump@.service`** — Template unit. `optidump@section_name.service` runs `--section section_name`. `Type=oneshot`, security-hardened.
-- **`docker/Dockerfile`** — Scratch-based, COPY-only. Uses `TARGETARCH` for multiplatform builds. Config mounted at `/etc/optidump/`.
+- **`docker/Dockerfile`** — Alpine-based with `mysql-client` and `mariadb-client`. COPY-only (no multi-stage build). Uses `TARGETARCH` for multiplatform builds. Config mounted at `/etc/optidump/`.
 - **`nfpm.yml`** — Package config for nfpm. Generates `.deb` (Debian/Ubuntu) and `.pkg.tar.zst` (Arch Linux). Includes binary, example config, systemd unit. Arch and version passed via env vars: `VERSION=x.y.z ARCH=amd64 nfpm package --config deployments/nfpm.yml --packager deb`
 - **`install.sh`** — One-liner installer. Detects OS/arch, downloads from GitHub Releases, verifies SHA-256 checksum, installs to `/usr/local/bin/`.
