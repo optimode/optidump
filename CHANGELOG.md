@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-02-22
+
 ### Added
 - Configurable SMTP support for email reporting: host, port, encryption (none/starttls/ssl), and authentication
 - Config validation for SMTP encryption mode, port range, and credential consistency
@@ -26,5 +28,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Build metadata injection (version, git commit, build time) via ldflags
 - Unit tests for all internal packages (config, logger, database, backup, report)
 
-[Unreleased]: https://github.com/optimode/optidump/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/optimode/optidump/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/optimode/optidump/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/optimode/optidump/releases/tag/v0.1.0
