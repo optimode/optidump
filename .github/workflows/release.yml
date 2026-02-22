@@ -63,26 +63,30 @@ jobs:
       - name: Build .deb package (amd64)
         working-directory: deployments
         run: |
-          VERSION=${{ steps.version.outputs.version }} ARCH=amd64 \
-            nfpm package --config nfpm.yml --packager deb --target ../bin/
+          export VERSION=${{ steps.version.outputs.version }} ARCH=amd64
+          envsubst < nfpm.yml > nfpm-resolved.yml
+          nfpm package --config nfpm-resolved.yml --packager deb --target ../bin/
 
       - name: Build .deb package (arm64)
         working-directory: deployments
         run: |
-          VERSION=${{ steps.version.outputs.version }} ARCH=arm64 \
-            nfpm package --config nfpm.yml --packager deb --target ../bin/
+          export VERSION=${{ steps.version.outputs.version }} ARCH=arm64
+          envsubst < nfpm.yml > nfpm-resolved.yml
+          nfpm package --config nfpm-resolved.yml --packager deb --target ../bin/
 
       - name: Build Arch package (amd64)
         working-directory: deployments
         run: |
-          VERSION=${{ steps.version.outputs.version }} ARCH=amd64 \
-            nfpm package --config nfpm.yml --packager archlinux --target ../bin/
+          export VERSION=${{ steps.version.outputs.version }} ARCH=amd64
+          envsubst < nfpm.yml > nfpm-resolved.yml
+          nfpm package --config nfpm-resolved.yml --packager archlinux --target ../bin/
 
       - name: Build Arch package (arm64)
         working-directory: deployments
         run: |
-          VERSION=${{ steps.version.outputs.version }} ARCH=arm64 \
-            nfpm package --config nfpm.yml --packager archlinux --target ../bin/
+          export VERSION=${{ steps.version.outputs.version }} ARCH=arm64
+          envsubst < nfpm.yml > nfpm-resolved.yml
+          nfpm package --config nfpm-resolved.yml --packager archlinux --target ../bin/
 
       # ---------------------------------------------------------------
       # GitHub Release
