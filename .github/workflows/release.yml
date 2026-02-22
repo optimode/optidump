@@ -1,0 +1,131 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  release:
+    name: Build & Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Extract version
+        id: version
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+          if echo "$TAG" | grep -qE '\-rc\.[0-9]+$'; then
+            echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # ---------------------------------------------------------------
+      # Build binaries
+      # ---------------------------------------------------------------
+
+      - name: Build all platforms
+        run: make build-all
+
+      - name: Generate checksums
+        working-directory: bin
+        run: sha256sum optidump-* > checksums-sha256.txt
+
+      # ---------------------------------------------------------------
+      # Linux packages (nfpm)
+      # ---------------------------------------------------------------
+
+      - name: Install nfpm
+        run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest
+
+      - name: Build .deb package (amd64)
+        working-directory: deployments
+        run: |
+          VERSION=${{ steps.version.outputs.version }} ARCH=amd64 \
+            nfpm package --config nfpm.yml --packager deb --target ../bin/
+
+      - name: Build .deb package (arm64)
+        working-directory: deployments
+        run: |
+          VERSION=${{ steps.version.outputs.version }} ARCH=arm64 \
+            nfpm package --config nfpm.yml --packager deb --target ../bin/
+
+      - name: Build Arch package (amd64)
+        working-directory: deployments
+        run: |
+          VERSION=${{ steps.version.outputs.version }} ARCH=amd64 \
+            nfpm package --config nfpm.yml --packager archlinux --target ../bin/
+
+      - name: Build Arch package (arm64)
+        working-directory: deployments
+        run: |
+          VERSION=${{ steps.version.outputs.version }} ARCH=arm64 \
+            nfpm package --config nfpm.yml --packager archlinux --target ../bin/
+
+      # ---------------------------------------------------------------
+      # GitHub Release
+      # ---------------------------------------------------------------
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            bin/optidump-*
+            bin/checksums-sha256.txt
+            bin/*.deb
+            bin/*.pkg.tar.zst
+          generate_release_notes: true
+          prerelease: ${{ steps.version.outputs.is_prerelease }}
+
+      # ---------------------------------------------------------------
+      # Docker (multiplatform)
+      # ---------------------------------------------------------------
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build & push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deployments/docker/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:${{ steps.version.outputs.tag }}
+            ghcr.io/${{ github.repository }}:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/optidump:${{ steps.version.outputs.tag }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/optidump:latest

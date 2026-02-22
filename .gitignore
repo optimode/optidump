@@ -1,0 +1,43 @@
+# Build output
+bin/
+
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Go workspace file
+go.work
+go.work.sum
+
+# Dependency directories
+vendor/
+
+# IDE - VS Code
+.vscode/
+*.code-workspace
+
+# IDE - VS Code History
+.history/
+
+# Claude Code (local settings)
+.claude/
+
+# Configs (keep only examples)
+configs/*.yml
+!configs/config.example.yml
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db

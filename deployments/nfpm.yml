@@ -1,0 +1,41 @@
+name: optidump
+description: Flexible MySQL backup tool with compression, filtering, and email reporting
+arch: ${ARCH}
+version: ${VERSION}
+maintainer: Optimode <packages@optimode.dev>
+homepage: https://github.com/optimode/optidump
+license: MIT
+
+contents:
+  # Binary
+  - src: ../bin/optidump-linux-${ARCH}
+    dst: /usr/local/bin/optidump
+    file_info:
+      mode: 0755
+
+  # Example configuration
+  - src: ../configs/config.example.yml
+    dst: /etc/optidump/config.yml
+    type: config
+    file_info:
+      mode: 0600
+
+  # Systemd template service
+  - src: ./systemd/optidump@.service
+    dst: /etc/systemd/system/optidump@.service
+    file_info:
+      mode: 0644
+
+  # Create backup destination directory
+  - dst: /opt/backup
+    type: dir
+    file_info:
+      mode: 0750
+
+scripts:
+  postinstall: |
+    #!/bin/sh
+    systemctl daemon-reload
+  preremove: |
+    #!/bin/sh
+    systemctl daemon-reload

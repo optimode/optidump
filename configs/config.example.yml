@@ -1,0 +1,84 @@
+# MySQL Backup Configuration Example
+
+production:
+  server:
+    host: 192.168.1.100
+    port: 3306
+    socket: # Leave empty if using host/port, or specify socket path like /var/run/mysqld/mysqld.sock
+    user: root
+    password: your_secure_password
+
+  backup:
+    # Backup mode: file_per_table or file_per_database
+    mode: file_per_table
+
+    # Compression: gz, bz2, or empty/false for no compression
+    compression: gz
+
+    # Destination directory for backups
+    destination: /opt/backup/mysql
+
+    # Path to mysqldump command (optional, defaults to /usr/bin/mysqldump)
+    command: /usr/bin/mysqldump
+
+    # Additional mysqldump options (optional)
+    options: --opt --routines --triggers --events --skip-lock-tables
+
+  # Logging configuration
+  # Native: /var/log/optidump/production.log (standard FHS path)
+  # Docker: /opt/backup/optidump.log (persistent audit log in backup volume)
+  logging:
+    file: /var/log/optidump/production.log
+    level: info  # debug, info, or error
+    format: text # text or json (default: text)
+
+  # Email report configuration
+  report:
+    sender: backup@example.com
+    recipient:
+      - admin@example.com
+      - dba@example.com
+
+  # Optional: Only backup specific databases/tables
+  only:
+    database1: # Backup all tables in database1
+    database2:
+      - table1  # Only backup specific tables
+      - table2
+
+  # Optional: Exclude specific databases/tables
+  exclude:
+    database3:
+      - temp_table  # Exclude specific table
+    test_database: # Exclude entire database (leave empty list)
+
+# Second section example with JSON logging
+development:
+  server:
+    host: localhost
+    port: 3306
+    socket:
+    user: dev_user
+    password: dev_password
+
+  backup:
+    mode: file_per_database
+    compression: gz
+    destination: /tmp/mysql_backup
+    command: /usr/bin/mysqldump
+    options: --opt --skip-lock-tables
+
+  logging:
+    file: /tmp/optidump_dev.log
+    level: debug
+    format: json  # JSON format for structured logging
+
+  report:
+    sender: dev-backup@example.com
+    recipient:
+      - developer@example.com
+
+  # Backup only specific databases
+  only:
+    app_database:
+    test_database:

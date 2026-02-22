@@ -1,0 +1,12 @@
+.git/
+.github/
+.history/
+.vscode/
+.claude/
+*.md
+!README.md
+LICENSE
+Makefile
+configs/
+deployments/
+*.log
