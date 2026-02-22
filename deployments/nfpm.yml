@@ -33,9 +33,5 @@ contents:
       mode: 0750
 
 scripts:
-  postinstall: |
-    #!/bin/sh
-    systemctl daemon-reload
-  preremove: |
-    #!/bin/sh
-    systemctl daemon-reload
+  postinstall: ./scripts/postinstall.sh
+  preremove: ./scripts/preremove.sh
